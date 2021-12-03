@@ -141,6 +141,8 @@ def build_meta_test_dataloader(dataset: Dataset, meta_test_cfg: Dict,
     num_support_workers = meta_test_cfg.support.get('num_workers', 0)
     num_query_workers = meta_test_cfg.query.get('num_workers', 0)
 
+    # 只取支撑集，首先 test dataset 内部会切分为支撑集和查询集
+    # 然后可以通过函数方法得到不同部分的数据
     support_data_loader = DataLoader(
         copy.deepcopy(dataset).support(),
         batch_size=support_batch_size,
@@ -162,6 +164,7 @@ def build_meta_test_dataloader(dataset: Dataset, meta_test_cfg: Dict,
     if meta_test_cfg.get('fast_test', False):
         all_batch_size = meta_test_cfg.test_set.get('batch_size', 16)
         num_all_workers = meta_test_cfg.test_set.get('num_workers', 1)
+        # 测试集的所有数据，和 num_test_episodes 无关，用于预计算
         test_set_data_loader = DataLoader(
             copy.deepcopy(dataset).test_set(),
             batch_size=all_batch_size,

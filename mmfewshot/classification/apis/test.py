@@ -91,11 +91,15 @@ def single_gpu_meta_test(model: Union[MMDataParallel, nn.Module],
 
     results_list = []
     prog_bar = mmcv.ProgressBar(num_test_tasks)
+    # 测试 num_test_tasks 次
     for task_id in range(num_test_tasks):
         # set support and query dataloader to the same task by task id
+        # 保证后续取得query和support是配对的数据，不能乱了
         query_dataloader.dataset.set_task_id(task_id)
         support_dataloader.dataset.set_task_id(task_id)
         # test a task
+        # 测试一次 task 其实就是仅仅提取了 n way k shot 张支撑集而已
+        # 真正的测试，前面都是为了做准备而已
         results, gt_labels = test_single_task(model, support_dataloader,
                                               query_dataloader, meta_test_cfg)
         # evaluate predict result
@@ -209,9 +213,11 @@ def multi_gpu_meta_test(model: MMDistributedDataParallel,
         query_dataloader.dataset.set_task_id(task_id)
         support_dataloader.dataset.set_task_id(task_id)
         # test a task
+        # 返回一次预测结果和对应标签
         results, gt_labels = test_single_task(model, support_dataloader,
                                               query_dataloader, meta_test_cfg)
         # evaluate predict result
+        # 此时才是真正算评估指标
         eval_result = query_dataloader.dataset.evaluate(
             results, gt_labels, logger=logger, **eval_kwargs)
         eval_result['task_id'] = task_id
@@ -219,6 +225,7 @@ def multi_gpu_meta_test(model: MMDistributedDataParallel,
         if rank == 0:
             prog_bar.update(world_size)
 
+    # 统计整个评估周期的结果
     collect_results_list = collect_results_cpu(
         results_list, num_test_tasks, tmpdir=None)
     if rank == 0:
@@ -232,6 +239,7 @@ def multi_gpu_meta_test(model: MMDistributedDataParallel,
         print_log(
             f'number of tasks: {len(collect_results_list)}', logger=logger)
         # get the average accuracy and std
+        # 返回平均值
         for k in collect_results_list[0].keys():
             if k == 'task_id':
                 continue
@@ -274,6 +282,7 @@ def extract_features_for_fast_test(model: MetaTestParallel,
     model.eval()
     # traverse the whole dataset and compute the features from backbone
     with torch.no_grad():
+        # 所有测试图片提前算特征，后续评估就不用算了
         for i, data in enumerate(test_set_dataloader):
             img_metas_list.extend(data['img_metas'].data[0])
             # forward in `extract_feat` mode
@@ -283,6 +292,7 @@ def extract_features_for_fast_test(model: MetaTestParallel,
                 prog_bar.update(num_tasks=len(data['img_metas'].data[0]))
         feats = torch.cat(feats_list, dim=0)
     # cache the pre-computed features into dataset
+    # 传给支撑集和查询集，后续他们就可以直接用了
     query_dataloader.dataset.cache_feats(feats, img_metas_list)
     support_dataloader.dataset.cache_feats(feats, img_metas_list)
 
@@ -311,15 +321,19 @@ def test_single_task(model: MetaTestParallel, support_dataloader: DataLoader,
             - gt_labels (np.ndarray): Ground truth labels.
     """
     # use copy of model for each task
+    # 还需要 copy ?
     model = copy.deepcopy(model)
     # get ids of all classes in this task
+    # 当前支撑集的 n way 类别
     task_class_ids = query_dataloader.dataset.get_task_class_ids()
 
     # forward support set
+    # 准备
     model.before_forward_support()
     support_cfg = meta_test_cfg.get('support', dict())
     # methods with fine-tune stage
     if support_cfg.get('train', False):
+        # 还可以这样？
         optimizer = build_optimizer(model, support_cfg.train['optimizer'])
         num_steps = support_cfg.train['num_steps']
         dataloader_iterator = iter(support_dataloader)
@@ -342,9 +356,11 @@ def test_single_task(model: MetaTestParallel, support_dataloader: DataLoader,
             # map input labels into range of 0 to numbers of classes-1
             data['gt_label'] = label_wrapper(data['gt_label'], task_class_ids)
             # forward in `support` mode
+            # 只是存储数据
             model.forward(**data, mode='support')
 
     # forward query set
+    # 准备查询
     model.before_forward_query()
     results_list, gt_label_list = [], []
     model.eval()
@@ -352,6 +368,7 @@ def test_single_task(model: MetaTestParallel, support_dataloader: DataLoader,
         for i, data in enumerate(query_dataloader):
             gt_label_list.append(data.pop('gt_label'))
             # forward in `query` mode
+            # 返回预测结果
             result = model.forward(**data, mode='query')
             results_list.extend(result)
         gt_labels = torch.cat(gt_label_list, dim=0).cpu().numpy()

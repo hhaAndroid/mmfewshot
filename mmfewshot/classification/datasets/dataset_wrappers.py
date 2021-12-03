@@ -58,27 +58,36 @@ class EpisodicDataset:
     def generate_episodic_idxes(self) -> Tuple[List[Mapping], List[List[int]]]:
         """Generate batch indices for each episodic."""
         episode_idxes, episode_class_ids = [], []
+        # 当前模式的全类名，例如cub train 是 100 个类
         class_ids = [i for i in range(len(self.CLASSES))]
         # using same episodes seed can generate same episodes for same dataset
         # it is designed for the reproducibility of meta train or meta test
         with local_numpy_seed(self.episodes_seed):
+            # num_episodes 是训练总迭代次数
             for _ in range(self.num_episodes):
+                # 每个迭代训练时候都是从训练集随机采样
                 np.random.shuffle(class_ids)
                 # sample classes
+                # 采样 n way 个类别
                 sampled_cls = class_ids[:self.num_ways]
                 episode_class_ids.append(sampled_cls)
                 episodic_support_idx = []
                 episodic_query_idx = []
                 # sample instances of each class
+                # 对于每个类别，随机挑选出指定个数的样本 idx
                 for i in range(self.num_ways):
+                    # 提供类别和想采样的个数，返回值是从指定类别中采样指定个数据 idx
                     shots = self.dataset.sample_shots_by_class_id(
                         sampled_cls[i], self.num_shots + self.num_queries)
+                    # 前 k shot 作为训练支撑集，后面的作为查询集
+                    # 查询集个数可以任意，但是 k shot 不能随意
                     episodic_support_idx += shots[:self.num_shots]
                     episodic_query_idx += shots[self.num_shots:]
                 episode_idxes.append({
                     'support': episodic_support_idx,
                     'query': episodic_query_idx
                 })
+        # 返回每次迭代所需要的 idx 和类别 id
         return episode_idxes, episode_class_ids
 
     def __getitem__(self, idx: int) -> Dict:
@@ -87,7 +96,8 @@ class EpisodicDataset:
         For `EpisodicDataset`, this function would return num_ways *
         num_shots support images and num_ways * num_queries query image.
         """
-
+        # 每次返回 n way k shot 支撑集
+        # 和指定的任意 n way num shot 个数的查询集，类别相同
         return {
             'support_data':
             [self.dataset[i] for i in self.episode_idxes[idx]['support']],
@@ -150,7 +160,7 @@ class MetaTestDataset(EpisodicDataset):
         extracted features from fixed backbone, then the features will be
         return instead of image.
         """
-
+        # test_set 模式表示整个数据集，不区分 support, query
         if self._mode == 'test_set':
             idx = idx
         elif self._mode == 'support':
@@ -191,6 +201,7 @@ class MetaTestDataset(EpisodicDataset):
 
     def cache_feats(self, feats: Tensor, img_metas: Dict) -> None:
         """Cache extracted feats into dataset."""
+        # 这个 feats 和 img_metas 包括了整个 tests 集
         idx_map = {
             osp.join(data_info['img_prefix'],
                      data_info['img_info']['filename']): idx
@@ -199,5 +210,6 @@ class MetaTestDataset(EpisodicDataset):
         # use filename as unique id
         for feat, img_meta in zip(feats, img_metas):
             idx = idx_map[img_meta['filename']]
+            # 全部存储，不管当前 dataset 是否有全部用到
             self.dataset.data_infos[idx]['feats'] = feat
         self._with_cache_feats = True

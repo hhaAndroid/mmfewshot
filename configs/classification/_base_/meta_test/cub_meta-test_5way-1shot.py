@@ -26,7 +26,7 @@ data = dict(
         dataset=dict(
             type='CUBDataset',
             subset='val',
-            data_prefix='data/CUB_200_2011',
+            data_prefix='/home/PJLAB/huanghaian/dataset/CUB_200_2011',
             pipeline=test_pipeline),
         meta_test_cfg=dict(
             num_episodes=num_val_episodes,
@@ -49,15 +49,17 @@ data = dict(
         dataset=dict(
             type='CUBDataset',
             subset='test',
-            data_prefix='data/CUB_200_2011',
+            data_prefix='/home/PJLAB/huanghaian/dataset/CUB_200_2011',
             pipeline=test_pipeline),
         meta_test_cfg=dict(
-            num_episodes=num_test_episodes,
+            num_episodes=num_test_episodes,  # 也是测试指定迭代总数，没有epoch的概念
             num_ways=num_ways,
             # whether to cache features in fixed-backbone methods for
             # testing acceleration.
             fast_test=False,
+            # 测试集不限制
             test_set=dict(batch_size=16, num_workers=2),
             # worker initialization for each task is a time consuming operation
+            # 一次迭代中 batch_size数是固定的，不能乱改
             support=dict(batch_size=num_ways * num_shots, num_workers=0),
             query=dict(batch_size=num_ways * num_queries, num_workers=0))))

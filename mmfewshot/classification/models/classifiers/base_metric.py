@@ -210,6 +210,7 @@ class BaseMetricClassifier(BaseFewShotClassifier):
         # the unused backbone will be removed to avoid copying
         # useless parameters.
         if meta_test_cfg.get('fast_test', False):
+            # 已经预取了，故不在需要重新利用 backbone 重新提取特征
             self.backbone = None
         else:
             # fix backbone

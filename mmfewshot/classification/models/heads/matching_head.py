@@ -53,17 +53,26 @@ class MatchingHead(BaseFewShotHead):
         Returns:
             dict[str, Tensor]: A dictionary of loss components.
         """
+        # n way
         class_ids = torch.unique(support_labels).cpu().tolist()
+        # 计算每个查询集和所有支撑集的相似度 80x25
         cosine_distance = torch.mm(
             F.normalize(query_feats),
             F.normalize(support_feats).transpose(0, 1))
         scores = F.softmax(cosine_distance * self.temperature, dim=-1)
+
+        # 因为不一定是 k way 1 shot 支撑集，需要先将 k way n shot 预测值
+        # 求平均变成 k way 1 shot，然后希望查询集标签和查询集预测向量接近。
+        # cat 后变成 80x5 5表示 5 个类
         scores = torch.cat([
             scores[:, support_labels == class_id].mean(1, keepdim=True)
             for class_id in class_ids
         ],
                            dim=1).log()
+        # 转换查询样本的真实标签
         query_labels = label_wrapper(query_labels, class_ids)
+        # 计算负对数使然 loss， loss 目的是希望真实类别预测值和标签接近
+        # 从这可以看出 训练 batch 是 80
         losses = self.loss(scores, query_labels)
         return losses
 

@@ -29,7 +29,7 @@ data = dict(
         num_queries=16,
         dataset=dict(
             type='CUBDataset',
-            data_prefix='data/CUB_200_2011',
+            data_prefix='/home/PJLAB/huanghaian/dataset/CUB_200_2011',
             subset='train',
             pipeline=train_pipeline)),
     test=dict(meta_test_cfg=dict(fast_test=True)))

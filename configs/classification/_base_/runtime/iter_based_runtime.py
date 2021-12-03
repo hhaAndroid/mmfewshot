@@ -6,7 +6,7 @@ log_config = dict(
     ])
 # yapf:enable
 checkpoint_config = dict(interval=4000)
-evaluation = dict(by_epoch=False, interval=2000, metric='accuracy')
+evaluation = dict(by_epoch=False, interval=10, metric='accuracy')
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 load_from = None
